@@ -3,7 +3,7 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-#pragma clang optimize off
+// #pragma clang optimize off
 
 #include <fstream>
 
