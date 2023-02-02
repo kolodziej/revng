@@ -50,7 +50,7 @@ public:
   void run();
   ABIAnalyses::ABIAnalysesResults analyzeABI(llvm::BasicBlock *Entry);
   ABIAnalyses::ABIAnalysesResults
-  analyzeABI(MetaAddress Addr) { // TODO: Tidy this
+  analyzeABI(MetaAddress Addr) { // WIP: Tidy this
     return analyzeABI(GCBI.getBlockAt(Addr));
   }
 

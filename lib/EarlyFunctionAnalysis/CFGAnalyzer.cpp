@@ -3,7 +3,6 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-// #pragma clang optimize off
 
 #include <fstream>
 
@@ -1028,10 +1027,10 @@ void CallSummarizer::handleCall(MetaAddress Caller,
 
   clobberCSVs(Builder, ClobberedRegisters);
 
-  for (auto &[Variable, Values] : ABIResults.FinalReturnValuesRegisters) {
+  for (auto &[CSV, Values] : ABIResults.FinalReturnValuesRegisters) {
     if (Values == abi::RegisterState::YesOrDead) {
-      auto Name = llvm::formatv("write_{0}", Variable->getName());
-      auto Register = M->getNamedGlobal(Variable->getName());
+      auto Name = llvm::formatv("write_{0}", CSV->getName());
+      auto Register = M->getNamedGlobal(CSV->getName());
       auto F = WeakReadWritePools.get(Register->getName(),
                                       Register->getValueType(),
                                       {},
