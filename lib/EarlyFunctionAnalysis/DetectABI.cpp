@@ -144,6 +144,48 @@ void DetectABI::run() {
                                       { Start },
                                       { Start });
 
+  for (const auto &[Label, Lattice] : Results) {
+      const auto &Addr = Label->Address;
+      if (Addr.isValid()) {
+          // Oracle.getLocalFunction(Addr) = FunctionSummary{
+
+          // }
+      }
+  }
+  // dump Results
+  std::ostream &Dump = std::cerr;
+  for (const auto &[Label, Lattice] : Results) {
+    const auto &Addr = Label->Address;
+    Dump << "[" << std::hex << ((Addr.isValid()) ? Addr.address() : 0)
+    << "]\n";
+
+    Dump << "OutValue:\n";
+    for (auto &[Key, ABI] : Lattice.OutValue) {
+      Dump << "\tAddr: " << Key.address() << "\n";
+    }
+
+    Dump << "InValue:\n";
+    for (auto &[Key, ABI] : Lattice.InValue) {
+      Dump << "\tAddr: " << Key.address() << "\n";
+    }
+
+    if (Lattice.OutValue.count(Label->Address)) {
+      Dump << "\tArgument Registers:\n";
+      for (const auto &Arg :
+           Lattice.OutValue.at(Label->Address).ArgumentRegisters) {
+        Dump << "\t\t" << model::Register::getName(Arg).str() << "\n";
+      }
+      Dump << "\tReturn Registers:\n";
+      for (const auto &Ret :
+           Lattice.OutValue.at(Label->Address).ReturnRegisters) {
+        Dump << "\t\t" << model::Register::getName(Ret).str() << "\n";
+      }
+    } else {
+      Dump << "\t no entry for address " << Label << "\n";
+    }
+  }
+  Dump << "---\n\n";
+
   // Propagate results between call-sites and functions
   interproceduralPropagation();
 
@@ -625,6 +667,7 @@ ABIAnalyses::ABIAnalysesResults DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
 
   // Detect function boundaries
   OutlinedFunction OutlinedFunction = Analyzer.outline(Entry);
+  OutlinedFunction.Function->dump();
 
   // Find registers that may be target of at least one store. This helps
   // refine the final results.
