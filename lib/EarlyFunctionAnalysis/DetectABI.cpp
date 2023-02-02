@@ -134,15 +134,15 @@ void DetectABI::run() {
   // traversal (leafs first).
   runInterproceduralAnalysis();
 
+  auto Start = ApproximateCallGraph.getEntryNode();
   using MFP::getMaximalFixedPoint;
   UsedRegistersMFI MFI{ *this };
   auto Results = getMaximalFixedPoint(MFI,
-                                      ApproximateCallGraph.getEntryNode(),
+                                      Start,
                                       UsedRegistersMFI::LatticeElement{},
                                       UsedRegistersMFI::ExtremalLattice,
-                                      {},
-                                      {});
-  (void)(Results);
+                                      { Start },
+                                      { Start });
 
   // Propagate results between call-sites and functions
   interproceduralPropagation();
