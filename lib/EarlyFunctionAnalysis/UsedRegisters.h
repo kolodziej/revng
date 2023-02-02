@@ -125,14 +125,21 @@ struct UsedRegistersMFI {
       return model::Register::fromCSVName(V->getName(),
                                           DA.getBinary()->Architecture());
     };
-    for (const auto &[Address, ABI] : E2) {
-      auto Results = DA.analyzeABI(Address);
-      for (auto &[CSV, State] : Results.ArgumentsRegisters) {
-        Result[Address].ArgumentRegisters.insert(Reg(CSV));
-      }
 
-      for (auto &[CSV, State] : Results.FinalReturnValuesRegisters) {
-        Result[Address].ReturnRegisters.insert(Reg(CSV));
+    const auto &Addr = L->Address;
+    if (Addr.isInvalid()) {
+      return Result;
+    }
+
+    auto Results = DA.analyzeABI(Addr);
+    for (auto &[CSV, State] : Results.ArgumentsRegisters) {
+      if (State == abi::RegisterState::Yes) {
+        Result[Addr].ArgumentRegisters.insert(Reg(CSV));
+      }
+    }
+    for (auto &[CSV, State] : Results.FinalReturnValuesRegisters) {
+      if (State == abi::RegisterState::YesOrDead) {
+        Result[Addr].ReturnRegisters.insert(Reg(CSV));
       }
     }
 
