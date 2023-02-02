@@ -145,19 +145,18 @@ void DetectABI::run() {
                                       { Start });
 
   for (const auto &[Label, Lattice] : Results) {
-      const auto &Addr = Label->Address;
-      if (Addr.isValid()) {
-          // Oracle.getLocalFunction(Addr) = FunctionSummary{
+    const auto &Addr = Label->Address;
+    if (Addr.isValid()) {
+      // Oracle.getLocalFunction(Addr) = FunctionSummary{
 
-          // }
-      }
+      // }
+    }
   }
   // dump Results
   std::ostream &Dump = std::cerr;
   for (const auto &[Label, Lattice] : Results) {
     const auto &Addr = Label->Address;
-    Dump << "[" << std::hex << ((Addr.isValid()) ? Addr.address() : 0)
-    << "]\n";
+    Dump << "[" << std::hex << ((Addr.isValid()) ? Addr.address() : 0) << "]\n";
 
     Dump << "OutValue:\n";
     for (auto &[Key, ABI] : Lattice.OutValue) {
