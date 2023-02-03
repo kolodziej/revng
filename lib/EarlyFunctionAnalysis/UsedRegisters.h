@@ -130,20 +130,20 @@ struct UsedRegistersMFI {
                                           DA.getBinary()->Architecture());
     };
 
-    const auto &Addr = L->Address;
-    if (Addr.isInvalid()) {
+    const auto &Address = L->Address;
+    if (Address.isInvalid()) {
       return Result;
     }
 
-    auto Results = DA.analyzeABI(Addr);
+    auto Results = DA.analyzeABI(Address);
     for (auto &[CSV, State] : Results.ArgumentsRegisters) {
       if (State == abi::RegisterState::Yes) {
-        Result.Map[Addr].ArgumentRegisters.insert(Reg(CSV));
+        Result.Map[Address].ArgumentRegisters.insert(Reg(CSV));
       }
     }
     for (auto &[CSV, State] : Results.FinalReturnValuesRegisters) {
       if (State == abi::RegisterState::YesOrDead) {
-        Result.Map[Addr].ReturnRegisters.insert(Reg(CSV));
+        Result.Map[Address].ReturnRegisters.insert(Reg(CSV));
       }
     }
 
