@@ -974,11 +974,10 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
   RetHook(RetHook),
   SPCSV(SPCSV),
   Oracle(Oracle),
-  RegistersClobberedPool(M, false),
-  WeakReadWritePools(M, false) {
-  RegistersClobberedPool.addFnAttribute(llvm::Attribute::ReadOnly);
-  RegistersClobberedPool.addFnAttribute(llvm::Attribute::NoUnwind);
-  RegistersClobberedPool.addFnAttribute(llvm::Attribute::WillReturn);
+  OpaqueValuesPool(M, false) {
+  OpaqueValuesPool.addFnAttribute(llvm::Attribute::ReadOnly);
+  OpaqueValuesPool.addFnAttribute(llvm::Attribute::NoUnwind);
+  OpaqueValuesPool.addFnAttribute(llvm::Attribute::WillReturn);
 }
 
 using CSVSet = std::set<llvm::GlobalVariable *>;
@@ -1027,7 +1026,7 @@ void CallSummarizer::handleCall(MetaAddress Caller,
     if (Values == abi::RegisterState::YesOrDead) {
       auto Name = llvm::formatv("write_{0}", CSV->getName());
       auto Register = M->getNamedGlobal(CSV->getName());
-      auto F = RegistersClobberedPool.get(Register->getName(),
+      auto F = OpaqueValuesPool.get(Register->getName(),
                                           Register->getValueType(),
                                           {},
                                           Name);
@@ -1078,7 +1077,7 @@ void CallSummarizer::clobberCSVs(llvm::IRBuilder<> &Builder,
   for (GlobalVariable *Register : ClobberedRegisters) {
     auto *CSVTy = Register->getType()->getPointerElementType();
     auto Name = llvm::formatv("registers_clobbered_{0}", Register->getName());
-    auto *ClobberFunction = RegistersClobberedPool.get(Register->getName(),
+    auto *ClobberFunction = OpaqueValuesPool.get(Register->getName(),
                                                        CSVTy,
                                                        {},
                                                        Name);

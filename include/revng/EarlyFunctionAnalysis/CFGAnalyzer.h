@@ -32,7 +32,7 @@ private:
   llvm::Function *RetHook = nullptr;
   llvm::GlobalVariable *SPCSV = nullptr;
   const FunctionSummaryOracle &Oracle;
-  OpaqueFunctionsPool<llvm::StringRef> RegistersClobberedPool;
+  OpaqueFunctionsPool<llvm::StringRef> OpaqueValuesPool;
 
 public:
   CallSummarizer(llvm::Module *M,
