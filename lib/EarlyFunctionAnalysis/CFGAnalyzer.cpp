@@ -1027,9 +1027,9 @@ void CallSummarizer::handleCall(MetaAddress Caller,
       auto Name = llvm::formatv("write_{0}", CSV->getName());
       auto Register = M->getNamedGlobal(CSV->getName());
       auto F = OpaqueValuesPool.get(Register->getName(),
-                                          Register->getValueType(),
-                                          {},
-                                          Name);
+                                    Register->getValueType(),
+                                    {},
+                                    Name);
       Builder.CreateStore(Builder.CreateCall(F), Register);
     }
   }
@@ -1078,9 +1078,9 @@ void CallSummarizer::clobberCSVs(llvm::IRBuilder<> &Builder,
     auto *CSVTy = Register->getType()->getPointerElementType();
     auto Name = llvm::formatv("registers_clobbered_{0}", Register->getName());
     auto *ClobberFunction = OpaqueValuesPool.get(Register->getName(),
-                                                       CSVTy,
-                                                       {},
-                                                       Name);
+                                                 CSVTy,
+                                                 {},
+                                                 Name);
     Builder.CreateStore(Builder.CreateCall(ClobberFunction), Register);
   }
 }
