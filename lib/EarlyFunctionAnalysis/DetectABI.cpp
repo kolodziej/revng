@@ -104,9 +104,6 @@ static pipeline::RegisterAnalysis<DetectABIAnalysis> A1;
 
 namespace efa {
 
-UsedRegistersMFI::ExtremalLatticeElement
-  UsedRegistersMFI::ExtremalLattice = ExtremalLatticeElement{};
-
 void DetectABI::initializeInterproceduralQueue() {
 
   // Create an over-approximated call graph of the program. A queue of all the
@@ -136,12 +133,7 @@ void DetectABI::run() {
   auto Start = ApproximateCallGraph.getEntryNode();
   using MFP::getMaximalFixedPoint;
   UsedRegistersMFI MFI{ *this };
-  auto Results = getMaximalFixedPoint(MFI,
-                                      Start,
-                                      UsedRegistersMFI::LatticeElement{},
-                                      UsedRegistersMFI::ExtremalLattice,
-                                      { Start },
-                                      { Start });
+  auto Results = getMaximalFixedPoint(MFI, Start, {}, {}, { Start }, { Start });
 
   // Propagate results between call-sites and functions
   interproceduralPropagation();

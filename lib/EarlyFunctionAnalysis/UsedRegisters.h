@@ -22,41 +22,58 @@ struct FunctionABI {
   using SUL = SetUnionLattice<SetOfRegisters>;
   SetOfRegisters ArgumentRegisters;
   SetOfRegisters ReturnRegisters;
+
+  [[nodiscard]] FunctionABI combineValues(const FunctionABI &A2) const {
+    FunctionABI Result{
+      .ArgumentRegisters = SUL::combineValues(ArgumentRegisters,
+                                              A2.ArgumentRegisters),
+      .ReturnRegisters = SUL::combineValues(ReturnRegisters, A2.ReturnRegisters)
+    };
+    return Result;
+  }
+
+  [[nodiscard]] bool isLessOrEqual(const FunctionABI &Right) const {
+    if (!SUL::isLessOrEqual(ArgumentRegisters, Right.ArgumentRegisters)) {
+      return false;
+    }
+
+    return SUL::isLessOrEqual(ReturnRegisters, Right.ReturnRegisters);
+  }
 };
 
-// using LatticeElement = std::map<MetaAddress, FunctionABI>;
+class LatticeElement {
+public:
+  using AddressABIMap = std::map<MetaAddress, FunctionABI>;
+  using MapValue = AddressABIMap::value_type;
+  AddressABIMap Map;
 
-struct LatticeElement : std::map<MetaAddress, FunctionABI> {
-  virtual ~LatticeElement() = default;
+public:
+  [[nodiscard]] std::optional<MapValue> find(MetaAddress Address) const {
+    if (auto It = Map.find(Address); It != Map.end()) {
+      return { *It };
+    }
 
-  [[nodiscard]] virtual bool
-  hasRetReg(MetaAddress Addr, model::Register::Values V) const {
-    if (count(Addr)) {
-      return at(Addr).ReturnRegisters.count(V);
+    return std::nullopt;
+  }
+
+  [[nodiscard]] bool
+  hasReturnRegister(MetaAddress Address, model::Register::Values V) const {
+    auto It = Map.find(Address);
+    if (It != Map.end()) {
+      return It->second.ReturnRegisters.count(V);
     }
 
     return false;
   }
 
-  [[nodiscard]] virtual bool
-  hasArgReg(MetaAddress Addr, model::Register::Values V) const {
-    if (count(Addr)) {
-      return at(Addr).ArgumentRegisters.count(V);
+  [[nodiscard]] bool
+  hasArgumentRegister(MetaAddress Address, model::Register::Values V) const {
+    auto It = Map.find(Address);
+    if (It != Map.end()) {
+      return It->second.ArgumentRegisters.count(V);
     }
 
     return false;
-  }
-};
-
-struct ExtremalLatticeElement : LatticeElement {
-  [[nodiscard]] bool
-  hasRetReg(MetaAddress Addr, model::Register::Values V) const {
-    return true;
-  }
-
-  [[nodiscard]] bool
-  hasArgReg(MetaAddress Addr, model::Register::Values V) const {
-    return true;
   }
 };
 
@@ -64,7 +81,6 @@ struct UsedRegistersMFI {
   using Label = BasicBlockNode *;
   using GraphType = llvm::Inverse<BasicBlockNode *>;
   using LatticeElement = LatticeElement;
-  using ExtremalLatticeElement = ExtremalLatticeElement;
 
   DetectABI &DA;
 
@@ -73,25 +89,18 @@ struct UsedRegistersMFI {
   [[nodiscard]] LatticeElement
   combineValues(const LatticeElement &E1, const LatticeElement &E2) const {
     LatticeElement Out;
-    for (const auto &[Address, E1Abi] : E1) {
-      if (E2.count(Address)) {
-        const auto &E2Abi = E2.at(Address);
-        const auto &E1Args = E1Abi.ArgumentRegisters;
-        const auto &E1Ret = E1Abi.ReturnRegisters;
-        const auto &E2Args = E2Abi.ArgumentRegisters;
-        const auto &E2Ret = E2Abi.ReturnRegisters;
-        Out[Address]
-          .ArgumentRegisters = FunctionABI::SUL::combineValues(E1Args, E2Args);
-        Out[Address].ReturnRegisters = FunctionABI::SUL::combineValues(E1Ret,
-                                                                       E2Ret);
+    for (const auto &[Address, E1Abi] : E1.Map) {
+      auto E2It = E2.Map.find(Address);
+      if (E2It != E2.Map.end()) {
+        Out.Map[Address] = E1Abi.combineValues(E2It->second);
       } else {
-        Out[Address] = E1Abi;
+        Out.Map[Address] = E1Abi;
       }
     }
 
-    for (const auto &[Address, E2Abi] : E2) {
-      if (!Out.count(Address)) {
-        Out[Address] = E2Abi;
+    for (const auto &[Address, E2Abi] : E2.Map) {
+      if (!Out.Map.count(Address)) {
+        Out.Map[Address] = E2Abi;
       }
     }
 
@@ -100,16 +109,10 @@ struct UsedRegistersMFI {
 
   [[nodiscard]] bool
   isLessOrEqual(const LatticeElement &Left, const LatticeElement &Right) const {
-    for (const auto &[Address, LeftAbi] : Left) {
-      if (Right.count(Address)) {
-        const auto &RightAbi = Right.at(Address);
-        if (!FunctionABI::SUL::isLessOrEqual(LeftAbi.ArgumentRegisters,
-                                             RightAbi.ArgumentRegisters)) {
-          return false;
-        }
-
-        if (!FunctionABI::SUL::isLessOrEqual(LeftAbi.ReturnRegisters,
-                                             RightAbi.ReturnRegisters)) {
+    for (const auto &[Address, LeftAbi] : Left.Map) {
+      if (Right.Map.count(Address)) {
+        const auto &RightAbi = Right.Map.at(Address);
+        if (!LeftAbi.isLessOrEqual(RightAbi)) {
           return false;
         }
       }
@@ -134,19 +137,17 @@ struct UsedRegistersMFI {
     auto Results = DA.analyzeABI(Addr);
     for (auto &[CSV, State] : Results.ArgumentsRegisters) {
       if (State == abi::RegisterState::Yes) {
-        Result[Addr].ArgumentRegisters.insert(Reg(CSV));
+        Result.Map[Addr].ArgumentRegisters.insert(Reg(CSV));
       }
     }
     for (auto &[CSV, State] : Results.FinalReturnValuesRegisters) {
       if (State == abi::RegisterState::YesOrDead) {
-        Result[Addr].ReturnRegisters.insert(Reg(CSV));
+        Result.Map[Addr].ReturnRegisters.insert(Reg(CSV));
       }
     }
 
     return Result;
   }
-
-  static ExtremalLatticeElement ExtremalLattice;
 };
 
 } // namespace efa
