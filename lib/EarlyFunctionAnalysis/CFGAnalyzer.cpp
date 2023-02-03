@@ -979,10 +979,6 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::ReadOnly);
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::NoUnwind);
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::WillReturn);
-
-  WeakReadWritePools.addFnAttribute(llvm::Attribute::ReadOnly);
-  WeakReadWritePools.addFnAttribute(llvm::Attribute::NoUnwind);
-  WeakReadWritePools.addFnAttribute(llvm::Attribute::WillReturn);
 }
 
 using CSVSet = std::set<llvm::GlobalVariable *>;
@@ -1031,10 +1027,10 @@ void CallSummarizer::handleCall(MetaAddress Caller,
     if (Values == abi::RegisterState::YesOrDead) {
       auto Name = llvm::formatv("write_{0}", CSV->getName());
       auto Register = M->getNamedGlobal(CSV->getName());
-      auto F = WeakReadWritePools.get(Register->getName(),
-                                      Register->getValueType(),
-                                      {},
-                                      Name);
+      auto F = RegistersClobberedPool.get(Register->getName(),
+                                          Register->getValueType(),
+                                          {},
+                                          Name);
       Builder.CreateStore(Builder.CreateCall(F), Register);
     }
   }
