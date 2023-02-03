@@ -99,8 +99,9 @@ struct UsedRegistersMFI {
     }
 
     for (const auto &[Address, E2Abi] : E2.Map) {
-      if (!Out.Map.count(Address)) {
-        Out.Map[Address] = E2Abi;
+      auto It = Out.Map.find(Address);
+      if (It != Out.Map.end()) {
+        It->second = E2Abi;
       }
     }
 
@@ -110,9 +111,9 @@ struct UsedRegistersMFI {
   [[nodiscard]] bool
   isLessOrEqual(const LatticeElement &Left, const LatticeElement &Right) const {
     for (const auto &[Address, LeftAbi] : Left.Map) {
-      if (Right.Map.count(Address)) {
-        const auto &RightAbi = Right.Map.at(Address);
-        if (!LeftAbi.isLessOrEqual(RightAbi)) {
+      auto It = Right.Map.find(Address);
+      if (It != Right.Map.end()) {
+        if (!LeftAbi.isLessOrEqual(It->second)) {
           return false;
         }
       }
