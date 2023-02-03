@@ -1013,10 +1013,16 @@ void CallSummarizer::handleCall(MetaAddress Caller,
                                                            SymbolName);
   const auto &ABIResults = CalleeSummary->ABIResults;
 
-  for (const auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
+  for (const auto &[CSV, Values] : ABIResults.ArgumentsRegisters) {
     if (Values == abi::RegisterState::Yes) {
-      auto Register = M->getNamedGlobal(Variable->getName());
-      Builder.CreateLoad(Register);
+      auto Register = M->getNamedGlobal(CSV->getName());
+      auto Name = llvm::formatv("read_{0}", CSV->getName());
+      auto F = OpaqueValuesPool.get(Name.str(),
+                                    llvm::Type::getVoidTy(Context),
+                                    { Register->getValueType() },
+                                    Name);
+      auto Load = Builder.CreateLoad(Register->getValueType(), Register);
+      Builder.CreateCall(F, { Load });
     }
   }
 
@@ -1026,7 +1032,7 @@ void CallSummarizer::handleCall(MetaAddress Caller,
     if (Values == abi::RegisterState::YesOrDead) {
       auto Name = llvm::formatv("write_{0}", CSV->getName());
       auto Register = M->getNamedGlobal(CSV->getName());
-      auto F = OpaqueValuesPool.get(Register->getName(),
+      auto F = OpaqueValuesPool.get(Name.str(),
                                     Register->getValueType(),
                                     {},
                                     Name);
