@@ -13,6 +13,8 @@
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 
+#include "UsedRegisters.h"
+
 namespace efa {
 
 using BasicBlockQueue = UniquedQueue<const BasicBlockNode *>;
@@ -60,6 +62,7 @@ private:
   void computeApproximateCallGraph();
   void initializeInterproceduralQueue();
   void runInterproceduralAnalysis();
+  void runMonotoneAnalysis();
   void interproceduralPropagation();
   void finalizeModel();
   void applyABIDeductions();
@@ -69,8 +72,6 @@ private:
 
   SortedVector<model::Register::Values>
   computePreservedRegisters(const CSVSet &ClobberedRegisters) const;
-
-  CSVSet findWrittenRegisters(llvm::Function *F);
 
   UpcastablePointer<model::Type>
   buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,

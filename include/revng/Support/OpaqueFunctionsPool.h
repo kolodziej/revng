@@ -3,6 +3,7 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
+// #pragma clang optimize off
 
 #include <map>
 
@@ -83,6 +84,10 @@ public:
     }
 
     // Ensure the function we're returning is as expected
+    if (F->getType()->getPointerElementType() != FT) {
+      F->getType()->getPointerElementType()->dump();
+      FT->dump();
+    }
     revng_assert(F->getType()->getPointerElementType() == FT);
 
     return F;

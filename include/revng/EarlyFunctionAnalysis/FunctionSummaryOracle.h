@@ -11,6 +11,8 @@
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/Model/FunctionAttribute.h"
 
+#include "UsedRegisters.h"
+
 namespace llvm {
 class Module;
 }
@@ -39,6 +41,7 @@ public:
   // TODO: this field is populated in a different maneer from all the others,
   //       consider changing how this works
   ABIAnalyses::ABIAnalysesResults ABIResults;
+
   SortedVector<efa::BasicBlock> CFG;
   std::optional<int64_t> ElectedFSO;
 

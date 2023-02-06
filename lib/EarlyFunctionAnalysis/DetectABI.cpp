@@ -130,10 +130,13 @@ void DetectABI::run() {
   // traversal (leafs first).
   runInterproceduralAnalysis();
 
+  // Analyze argument and return registers
   auto Start = ApproximateCallGraph.getEntryNode();
   using MFP::getMaximalFixedPoint;
-  UsedRegistersMFI MFI{ *this };
+  UsedRegistersMFI MFI{ *this, Analyzer };
   auto Results = getMaximalFixedPoint(MFI, Start, {}, {}, { Start }, { Start });
+
+  runMonotoneAnalysis();
 
   // Propagate results between call-sites and functions
   interproceduralPropagation();
@@ -144,6 +147,18 @@ void DetectABI::run() {
   // Commit the results onto the model. A non-const model is taken as
   // argument to be written.
   finalizeModel();
+}
+
+void DetectABI::runMonotoneAnalysis() {
+  auto Start = ApproximateCallGraph.getEntryNode();
+  UsedRegistersMFI MFI{GCBI, Analyzer, Binary, Oracle};
+  auto Results = MFP::getMaximalFixedPoint(MFI, Start, {}, {}, { Start }, { Start });
+
+  for (const auto &[Node, ABI] : Results) {
+    const auto &Address = Node->Address;
+    auto &ABIResults = Oracle.getLocalFunction(Address).ABIResults;
+    for (
+  }
 }
 
 void DetectABI::computeApproximateCallGraph() {
@@ -519,137 +534,6 @@ void DetectABI::applyABIDeductions() {
   }
 }
 
-std::set<llvm::GlobalVariable *>
-DetectABI::findWrittenRegisters(llvm::Function *F) {
-  using namespace llvm;
-
-  std::set<GlobalVariable *> WrittenRegisters;
-  for (auto &BB : *F) {
-    for (auto &I : BB) {
-      if (auto *SI = dyn_cast<StoreInst>(&I)) {
-        Value *Ptr = skipCasts(SI->getPointerOperand());
-        if (auto *GV = dyn_cast<GlobalVariable>(Ptr))
-          WrittenRegisters.insert(GV);
-      }
-    }
-  }
-
-  return WrittenRegisters;
-}
-
-std::set<llvm::GlobalVariable *>
-DetectABI::computePreservedCSVs(const CSVSet &ClobberedRegisters) const {
-  using llvm::GlobalVariable;
-  using std::set;
-  set<GlobalVariable *> PreservedRegisters(Analyzer.abiCSVs().begin(),
-                                           Analyzer.abiCSVs().end());
-  std::erase_if(PreservedRegisters, [&](const auto &E) {
-    auto End = ClobberedRegisters.end();
-    return ClobberedRegisters.find(E) != End;
-  });
-
-  return PreservedRegisters;
-}
-
-SortedVector<model::Register::Values>
-DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
-  using namespace model;
-
-  SortedVector<model::Register::Values> Result;
-  CSVSet PreservedRegisters = computePreservedCSVs(ClobberedRegisters);
-
-  auto PreservedRegistersInserter = Result.batch_insert();
-  for (auto *CSV : PreservedRegisters) {
-    auto RegisterID = model::Register::fromCSVName(CSV->getName(),
-                                                   Binary->Architecture());
-    if (RegisterID == Register::Invalid)
-      continue;
-
-    PreservedRegistersInserter.insert(RegisterID);
-  }
-
-  return Result;
-}
-
-static void
-suppressCSAndSPRegisters(ABIAnalyses::ABIAnalysesResults &ABIResults,
-                         const std::set<GlobalVariable *> &CalleeSavedRegs) {
-  using RegisterState = abi::RegisterState::Values;
-
-  // Suppress from arguments
-  for (const auto &Reg : CalleeSavedRegs) {
-    auto It = ABIResults.ArgumentsRegisters.find(Reg);
-    if (It != ABIResults.ArgumentsRegisters.end())
-      It->second = RegisterState::No;
-  }
-
-  // Suppress from return values
-  for (const auto &[K, _] : ABIResults.ReturnValuesRegisters) {
-    for (const auto &Reg : CalleeSavedRegs) {
-      auto It = ABIResults.ReturnValuesRegisters[K].find(Reg);
-      if (It != ABIResults.ReturnValuesRegisters[K].end())
-        It->second = RegisterState::No;
-    }
-  }
-
-  // Suppress from call-sites
-  for (const auto &[K, _] : ABIResults.CallSites) {
-    for (const auto &Reg : CalleeSavedRegs) {
-      if (ABIResults.CallSites[K].ArgumentsRegisters.count(Reg) != 0)
-        ABIResults.CallSites[K].ArgumentsRegisters[Reg] = RegisterState::No;
-
-      if (ABIResults.CallSites[K].ReturnValuesRegisters.count(Reg) != 0)
-        ABIResults.CallSites[K].ReturnValuesRegisters[Reg] = RegisterState::No;
-    }
-  }
-}
-
-ABIAnalyses::ABIAnalysesResults DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
-  using namespace llvm;
-  using llvm::BasicBlock;
-  using namespace ABIAnalyses;
-
-  MetaAddress EntryAddress = getBasicBlockPC(Entry);
-
-  IRBuilder<> Builder(M.getContext());
-  ABIAnalysesResults ABIResults;
-
-  // Detect function boundaries
-  OutlinedFunction OutlinedFunction = Analyzer.outline(Entry);
-
-  // Find registers that may be target of at least one store. This helps
-  // refine the final results.
-  auto WrittenRegisters = findWrittenRegisters(OutlinedFunction.Function.get());
-
-  // Run ABI-independent data-flow analyses
-  ABIResults = analyzeOutlinedFunction(OutlinedFunction.Function.get(),
-                                       GCBI,
-                                       Analyzer.preCallHook(),
-                                       Analyzer.postCallHook(),
-                                       Analyzer.retHook());
-
-  // We say that a register is callee-saved when, besides being preserved by
-  // the callee, there is at least a write onto this register.
-  const auto &Summary = Oracle.getLocalFunction(EntryAddress);
-  auto CalleeSavedRegs = computePreservedCSVs(Summary.ClobberedRegisters);
-  auto ActualCalleeSavedRegs = intersect(CalleeSavedRegs, WrittenRegisters);
-
-  // Union between effective callee-saved registers and SP
-  ActualCalleeSavedRegs.insert(GCBI.spReg());
-
-  // Refine ABI analyses results by suppressing callee-saved and stack
-  // pointer registers.
-  suppressCSAndSPRegisters(ABIResults, ActualCalleeSavedRegs);
-
-  // Merge return values registers
-  ABIAnalyses::finalizeReturnValues(ABIResults);
-
-  // Commit ABI analysis results to the oracle
-  Oracle.getLocalFunction(EntryAddress).ABIResults = ABIResults;
-
-  return ABIResults;
-}
-
 void DetectABI::runInterproceduralAnalysis() {
   std::set<MetaAddress> Set;
 
@@ -720,6 +604,40 @@ void DetectABI::runInterproceduralAnalysis() {
       }
     }
   }
+}
+
+SortedVector<model::Register::Values>
+DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
+  using namespace model;
+
+  SortedVector<model::Register::Values> Result;
+  CSVSet PreservedRegisters = computePreservedCSVs(ClobberedRegisters);
+
+  auto PreservedRegistersInserter = Result.batch_insert();
+  for (auto *CSV : PreservedRegisters) {
+    auto RegisterID = model::Register::fromCSVName(CSV->getName(),
+                                                   Binary->Architecture());
+    if (RegisterID == Register::Invalid)
+      continue;
+
+    PreservedRegistersInserter.insert(RegisterID);
+  }
+
+  return Result;
+}
+
+
+DetectABI::CSVSet DetectABI::computePreservedCSVs(const CSVSet &ClobberedRegisters) const {
+  using llvm::GlobalVariable;
+  using std::set;
+  set<GlobalVariable *> PreservedRegisters(Analyzer.abiCSVs().begin(),
+                                           Analyzer.abiCSVs().end());
+  std::erase_if(PreservedRegisters, [&](const auto &E) {
+    auto End = ClobberedRegisters.end();
+    return ClobberedRegisters.find(E) != End;
+  });
+
+  return PreservedRegisters;
 }
 
 bool DetectABIPass::runOnModule(Module &M) {

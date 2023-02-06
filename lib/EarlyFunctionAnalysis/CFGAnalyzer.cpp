@@ -1007,6 +1007,7 @@ void CallSummarizer::handleCall(MetaAddress Caller,
   Builder.CreateCall(PreCallHook, Args);
 
   const auto SymbolName = extractFromConstantStringPtr(SymbolNamePointer);
+  // CalleeSummary from LatticeElement
   const auto &[CalleeSummary, IsTail] = Oracle.getCallSite(Caller,
                                                            CallerBlock,
                                                            Callee,
