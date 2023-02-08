@@ -45,6 +45,9 @@ analyze(const BasicBlock *ReturnBlock, const GeneratedCodeBasicInfo &GCBI) {
     for (auto &[GV, RegState] : Result.OutValue) {
       if (RegState == CoreLattice::Unknown) {
         RegUnknown.insert(GV);
+        if (ABIAnalysesLog.isEnabled()) {
+          ABIAnalysesLog << "Unknown Reg : " << GV->getName() << "\n";
+        }
       }
     }
   }

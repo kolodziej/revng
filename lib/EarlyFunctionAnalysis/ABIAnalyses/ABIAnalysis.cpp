@@ -266,7 +266,8 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
   if (ABIAnalysesLog.isEnabled()) {
     ABIAnalysesLog << "Dumping ABIAnalyses results for function "
                    << F->getName() << ": \n";
-    Results.dump();
+    Results.dump(ABIAnalysesLog, "");
+    ABIAnalysesLog << "---";
   }
 
   // Finalize results. Combine UAOF and DRAOF.
