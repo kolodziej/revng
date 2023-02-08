@@ -52,6 +52,7 @@ private:
 
 public:
   Logger(llvm::StringRef Name) : Name(Name), Enabled(false) { init(); }
+  ~Logger() { flush(); }
 
   void indent(unsigned Level = 1);
   void unindent(unsigned Level = 1);
