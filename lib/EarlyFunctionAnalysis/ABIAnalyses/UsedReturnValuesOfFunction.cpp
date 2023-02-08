@@ -17,6 +17,8 @@
 
 #include "Analyses.h"
 
+extern Logger<> ABIAnalysesLog;
+
 namespace ABIAnalyses::UsedReturnValuesOfFunction {
 using namespace llvm;
 using namespace ABIAnalyses;

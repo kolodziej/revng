@@ -24,7 +24,7 @@
 
 using namespace llvm;
 
-static Logger<> ABIAnalysesLog("abi-analyses");
+Logger<> ABIAnalysesLog("abi-analyses");
 
 namespace ABIAnalyses {
 using RegisterState = abi::RegisterState::Values;
